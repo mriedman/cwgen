@@ -1,6 +1,7 @@
 from random import choice
 from copy import copy, deepcopy
 import json
+from collections import defaultdict
 
 wordlist1 = open('cw.txt').read()
 alphabet = [i for i in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
@@ -23,9 +24,10 @@ for i in wordlist5:
 with open('xwilist.json') as f:
     xwi_wordlist1 = json.load(f)
 
-# xwi_words_by_length = [{i: [word for word in xwi_wordlist1[i] if len(word) == j] for i in xwi_wordlist1} for j in range(22)]
+xwi_words_by_length = [{i: [word for word in xwi_wordlist1[i] if len(word) == j] for i in xwi_wordlist1} for j in range(22)]
 # xwi_words_by_length = [{'60': i} for i in words_by_length]
-xwi_words_by_length = [[word for i in xwi_wordlist1 for word in xwi_wordlist1[i] if (len(word) == j and (j < 6 or i == '60'))] for j in range(22)]
+# xwi_words_by_length = [[word for i in xwi_wordlist1 for word in xwi_wordlist1[i] if (len(word) == j and (j < 6 or i == '60'))] for j in range(22)]
+# xwi_words_by_length = words_by_length
 # print(xwi_words_by_length[7][-30:])
 # print(xwi_words_by_length)
 '''print(wordlist5[:30])
@@ -158,7 +160,7 @@ class CM(object):
         for i in range(tries):
             try:
                 self.insert_by_number(self.full_word_list[n].choice(), n)
-            except SystemExit:
+            except:
                 pass
 
     def reduce1(self, col_num, row_num, direction):
@@ -192,10 +194,12 @@ class CM(object):
 
     def fill_puzzle(self, max_attempts=7):
         print(self)
-        n = [0, 10 ** 5]
-        for idx, word in enumerate(self.full_word_list):
-            if len(word) < n[1] and word.unfilled:
-                n = [idx, len(word)]
+        # [clue_num, num of possible words for that clue]
+        n = [0, 10 ** 6]
+        for idx, words in enumerate(self.full_word_list):
+            # print('Nums:', idx, ':', len(words))
+            if len(words) < n[1] and words.unfilled:
+                n = [idx, len(words)]
         if n == [0, 10 ** 5]:
             return self
         for i in range(max_attempts):
@@ -226,13 +230,13 @@ class WordList(object):
     alphabet = alphabet
 
     def __init__(self, wordlist):
-        # flatlist = [word for j in wordlist for word in wordlist[j]]
-        self.wordnums = [i for i in range(len(wordlist))]  # 1
-        # self.wordnums = [i for i in range(len(flatlist))]  #
-        self.wordlist = deepcopy(wordlist)  # 1
-        # self.wordlist = deepcopy(flatlist)  #
+        flatlist = [word for j in wordlist for word in wordlist[j]]
+        # self.wordnums = [i for i in range(len(wordlist))]  # 1
+        self.wordnums = [i for i in range(len(flatlist))]  #
+        # self.wordlist = deepcopy(wordlist)  # 1
+        self.wordlist = flatlist  #
         # self.wordlist0 = deepcopy(wordlist)  #
-        # self.word_values = {word: v for v in wordlist for word in wordlist[v]}  #
+        self.word_values = {word: v for v in wordlist for word in wordlist[v]}  #
         self.num_to_word = {i: self.wordlist[i] for i in range(len(self.wordlist))}
         self.word_to_num = {self.wordlist[i]: i for i in range(len(self.wordlist))}
         self.word_by_letter = []
@@ -251,22 +255,25 @@ class WordList(object):
         return self.get_word(item)
 
     def choice(self):
-        '''sixties = [word for word in self.wordlist if word in self.wordlist0['60']]
-        if len(sixties) > 0:
-            print('60!')
-            return choice(sixties)
-        print('Not 60 :(')'''
-        return self.wordlist[choice(self.wordnums)]
+        by_value = defaultdict(list)
+        for word_num in self.wordnums:
+            by_value[self.word_values[self.wordlist[word_num]]].append(self.wordlist[word_num])
+        if len(by_value.keys()) > 0:
+            print('Next Word Value:', max(by_value.keys()))
+        word = choice(by_value[max(by_value.keys())])
+        print(word)
+        return word
+        # return self.wordlist[choice(self.wordnums)]
 
     def __delitem__(self, key):
         self.del2(self.wordnums[key], key)
 
-    def del2(self, k, k0=-1):
-        word = self.wordlist[k]
+    def del2(self, word_num, k0=-1):
+        word = self.wordlist[word_num]
         for idx, letter in enumerate(word):
-            del self.word_by_letter[idx][letter][k]
+            del self.word_by_letter[idx][letter][word_num]
         if k0 < 0:
-            del self.wordnums[self.wordnums.index(k)]
+            del self.wordnums[self.wordnums.index(word_num)]
         else:
             del self.wordnums[k0]
 
@@ -283,16 +290,16 @@ class WordList(object):
                 del self.word_by_letter[x][y][i[1]]
         return [i[0] for i in a if not i[0] == -1]
 
-    def delete_by_char(self, pos_in_word, c):
-        new_wordlist = [i for i in self.word_by_letter[pos_in_word][c]]
-        for i in new_wordlist:
-            self.del2(i)
-        for i in range(len(self.word_by_letter)):
-            for j in self.word_by_letter[i]:
-                if len(self.word_by_letter[i][j]) == 0 and j in self.cell_list[i][0].possible_chars and (i != pos_in_word or j != c):
-                    k, new_wordlist = (self.cell_list[i][m] for m in range(2))
-                    k.possible_chars[k.possible_chars.index(j)] = 0
-                    k.wordlists[1 - new_wordlist].delete_by_char(k.crossword.wr1[1 - new_wordlist][k.row][k.col], j)
+    def delete_by_char(self, pos_in_word, deleted_char):
+        direction = [i for i in self.word_by_letter[pos_in_word][deleted_char]]
+        for pos in direction:
+            self.del2(pos)
+        for pos in range(len(self.word_by_letter)):
+            for letter in self.word_by_letter[pos]:
+                if len(self.word_by_letter[pos][letter]) == 0 and letter in self.cell_list[pos][0].possible_chars and (pos != pos_in_word or letter != deleted_char):
+                    box, direction = (self.cell_list[pos][m] for m in range(2))
+                    box.possible_chars[box.possible_chars.index(letter)] = 0
+                    box.wordlists[1 - direction].delete_by_char(box.crossword.wr1[1 - direction][box.row][box.col], letter)
 
     def deepcopy(self):
         # print(5)
