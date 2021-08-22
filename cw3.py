@@ -1,10 +1,12 @@
 from random import choice
-from copy import copy, deepcopy
+from copy import copy
 import json
 from collections import defaultdict
+import numpy as np
 
-wordlist1 = open('cw.txt').read()
 alphabet = [i for i in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
+
+'''wordlist1 = open('cw.txt').read()
 wordlist2 = [i.split(' ') for i in wordlist1.split('\n')]
 wordlist3 = []
 for i in wordlist2:
@@ -20,21 +22,22 @@ words_by_length = [[] for i in range(22)]
 c = [0, '']
 for i in wordlist5:
     words_by_length[len(i)].append(i)
-
+'''
 with open('xwilist.json') as f:
     xwi_wordlist1 = json.load(f)
 
 xwi_words_by_length = [{i: [word for word in xwi_wordlist1[i] if len(word) == j] for i in xwi_wordlist1} for j in range(22)]
-# xwi_words_by_length = [{'60': i} for i in words_by_length]
+'''# xwi_words_by_length = [{'60': i} for i in words_by_length]
 # xwi_words_by_length = [[word for i in xwi_wordlist1 for word in xwi_wordlist1[i] if (len(word) == j and (j < 6 or i == '60'))] for j in range(22)]
 # xwi_words_by_length = words_by_length
 # print(xwi_words_by_length[7][-30:])
 # print(xwi_words_by_length)
-'''print(wordlist5[:30])
+print(wordlist5[:30])
 for i in range(4, 10):
     print(words_by_length[i][:20])
     print(xwi_words_by_length[i]['60'][:20])
 exit(0)'''
+
 
 class CM(object):
     # Next line unnecessary
@@ -55,6 +58,7 @@ class CM(object):
         self.full_word_list = []
         self.words_info = []
         self.wr1 = [[[0 for _ in range(width)] for _ in range(height)] for _ in range(2)]
+        self.words_inserted = 0
         for box in boxes:
             self.grid[box[1]][box[0]] = '#'
             self.box_array[box[1]][box[0]].make_black()
@@ -79,6 +83,11 @@ class CM(object):
             for row_num in i:
                 row_num.create_box()
 
+        for i in self.clue_num_list:
+            for j in i:
+                print(j)
+            print()
+
     @staticmethod
     def get_box_by_order(wordlist, coord1, coord2, coord_order):
         if coord_order == 0:
@@ -102,6 +111,11 @@ class CM(object):
             self.grid[row_num][col] = word[col - col_num]
             self.box_array[row_num][col].possible_chars = [word[col - col_num]]
             self.full_word_list[self.clue_num_list[0][row_num][col]].unfilled = False
+            '''try:
+                self.reduce1(col, row_num, 1)
+            except Exception as e:
+                print('ERROR!')
+                print(e)'''
             self.reduce1(col, row_num, 1)
 
     def insert_down_word(self, word, row_num, col_num):
@@ -120,6 +134,9 @@ class CM(object):
             self.insert_across_word(word, row_num, col_num)
         elif i == 1:
             self.insert_down_word(word, row_num, col_num)
+        self.words_inserted += 1
+        for words in self.full_word_list:
+            words.words_inserted = self.words_inserted
 
     def insert_by_number(self, word, slot_num):
         if slot_num < self.num_words_to_fill[0]:
@@ -136,6 +153,7 @@ class CM(object):
                     is_inserted = True
                     break
             if is_inserted:
+                self.words_inserted += 1
                 break
 
     def __str__(self):
@@ -150,18 +168,23 @@ class CM(object):
         return s
 
     # This isn't used for some reason
-    def insert_word2(self, w, x, y, p):
+    '''def insert_word2(self, w, x, y, p):
         if p == 0:
             self.insert_across_word(w, x, y)
         elif p == 1:
-            self.insert_down_word(w, x, y)
+            self.insert_down_word(w, x, y)'''
 
     def frw(self, n, tries):
         for i in range(tries):
-            try:
+            '''try:
                 self.insert_by_number(self.full_word_list[n].choice(), n)
             except:
-                pass
+                pass'''
+            next_word = self.full_word_list[n].choice()
+            if next_word is not None:
+                self.insert_by_number(next_word, n)
+            else:
+                raise Exception('Not right now')
 
     def reduce1(self, col_num, row_num, direction):
         grid_char = self.grid[row_num][col_num]
@@ -174,7 +197,7 @@ class CM(object):
         for j in range(len(full_word_list)):
             if full_word_list[j - deleted][[col_num, row_num][direction] - word_info[direction]] != grid_char:
                 del full_word_list[j - deleted]
-                deleted += 1
+                # deleted += 1
         for i in range(word_info[2]):
             row, col = word_info[1] + direction * i, word_info[0] + (1 - direction) * i
             deleted = 0
@@ -186,7 +209,7 @@ class CM(object):
                         del box.possible_chars[j - deleted]
                         deleted += 1
                         continue
-                    if len(self.full_word_list[clue_num].word_by_letter[i][next_char]) == 0:
+                    if all(self.full_word_list[clue_num].word_by_letter[i][next_char] >= 0):
                         possible_words = box.wordlists[1 - direction]
                         possible_words.delete_by_char(self.wr1[1 - direction][row][col], next_char)
                         del box.possible_chars[j - deleted]
@@ -198,21 +221,21 @@ class CM(object):
         n = [0, 10 ** 6]
         for idx, words in enumerate(self.full_word_list):
             # print('Nums:', idx, ':', len(words))
-            if len(words) < n[1] and words.unfilled:
-                n = [idx, len(words)]
-        if n == [0, 10 ** 5]:
+            possible_words = np.sum(words.wordnums < 0)
+            if possible_words < n[1] and words.unfilled:
+                n = [idx, possible_words]
+        if n == [0, 10 ** 6]:
             return self
         for i in range(max_attempts):
-            try:
-                print('a')
-                # THIS IS IT RIGHT HERE!!!
-                cw1 = deepcopy(self)
-                print('boxes')
-                cw1.frw(n[0], 1)
-                cw1.fill_puzzle(max_attempts)
-                return cw1
-            except IndexError:
-                pass
+            # try:
+            # THIS IS IT RIGHT HERE!!!
+            # cw1 = deepcopy(self)
+            cw1 = self
+            cw1.frw(n[0], 1)
+            cw1.fill_puzzle(max_attempts)
+            return cw1
+            # except IndexError:
+            #     pass
         raise IndexError('')
 
     '''def __deepcopy__(self):
@@ -231,77 +254,84 @@ class WordList(object):
 
     def __init__(self, wordlist):
         flatlist = [word for j in wordlist for word in wordlist[j]]
-        # self.wordnums = [i for i in range(len(wordlist))]  # 1
-        self.wordnums = [i for i in range(len(flatlist))]  #
-        # self.wordlist = deepcopy(wordlist)  # 1
-        self.wordlist = flatlist  #
-        # self.wordlist0 = deepcopy(wordlist)  #
+        self.wordnums = np.zeros(len(flatlist), int) - 1
+        self.wordlist = flatlist
         self.word_values = {word: v for v in wordlist for word in wordlist[v]}  #
         self.num_to_word = {i: self.wordlist[i] for i in range(len(self.wordlist))}
         self.word_to_num = {self.wordlist[i]: i for i in range(len(self.wordlist))}
         self.word_by_letter = []
+        self.nums_by_letter = []
+        self.nums_by_letter_rev = []
         self.cell_list = [{} for _ in range(len(self.wordlist[0]))]
         self.unfilled = True
+        self.words_inserted = 0
+
         for letter_idx in range(len(self.wordlist[0])):
-            by_ith_letter = {i: {} for i in self.alphabet}
+            nums_by_ith_letter = {i: [] for i in self.alphabet}
+            nums_by_ith_letter_rev = {}
             for wordlist_idx in range(len(self.wordlist)):
-                by_ith_letter[self.wordlist[wordlist_idx][letter_idx]][self.word_to_num[self.wordlist[wordlist_idx]]] = self.wordlist[wordlist_idx]
-            self.word_by_letter.append(by_ith_letter)
+                nums_by_ith_letter_rev[wordlist_idx] = len(nums_by_ith_letter[self.wordlist[wordlist_idx][letter_idx]])
+                nums_by_ith_letter[self.wordlist[wordlist_idx][letter_idx]].append(wordlist_idx)
+            self.nums_by_letter.append({i: np.array(nums_by_ith_letter[i]) for i in nums_by_ith_letter})
+            self.nums_by_letter_rev.append(nums_by_ith_letter_rev)
+            self.word_by_letter.append({letter: np.zeros(len(nums_by_ith_letter[letter]), int) - 1 for letter in nums_by_ith_letter})
 
     def get_word(self, n):
-        return self.wordlist[self.wordnums[n]]
+        return self.wordlist[n]
 
     def __getitem__(self, item):
         return self.get_word(item)
 
     def choice(self):
         by_value = defaultdict(list)
-        for word_num in self.wordnums:
+        for word_num in np.nonzero(self.wordnums < 0)[0]:
             by_value[self.word_values[self.wordlist[word_num]]].append(self.wordlist[word_num])
         if len(by_value.keys()) > 0:
             print('Next Word Value:', max(by_value.keys()))
+        else:
+            print('No words found!')
+            return None
         word = choice(by_value[max(by_value.keys())])
         print(word)
         return word
         # return self.wordlist[choice(self.wordnums)]
 
     def __delitem__(self, key):
-        self.del2(self.wordnums[key], key)
+        self.del2(key)
 
-    def del2(self, word_num, k0=-1):
+    def del2(self, word_num):
         word = self.wordlist[word_num]
         for idx, letter in enumerate(word):
-            del self.word_by_letter[idx][letter][word_num]
-        if k0 < 0:
-            del self.wordnums[self.wordnums.index(word_num)]
-        else:
-            del self.wordnums[k0]
+            self.word_by_letter[idx][letter][self.nums_by_letter_rev[idx][word_num]] = self.words_inserted
+        self.wordnums[word_num] = self.words_inserted
 
     def __len__(self):
-        return len(self.wordnums)
+        # return np.sum(self.wordnums < 0)
+        return len(self.wordlist)
 
     def __str__(self):
-        return str([self[i] for i in range(len(self.wordnums))])
+        return str([self[i] for i in np.nonzero(self.wordnums < 0)[0]])
 
-    def wbpl(self, x, y):
+    '''def wbpl(self, x, y):
         a = [[self.wordlist[i], i] for i in self.word_by_letter[x][y]]
         for i in a:
             if i[0] == -1:
                 del self.word_by_letter[x][y][i[1]]
-        return [i[0] for i in a if not i[0] == -1]
+        return [i[0] for i in a if not i[0] == -1]'''
 
     def delete_by_char(self, pos_in_word, deleted_char):
-        direction = [i for i in self.word_by_letter[pos_in_word][deleted_char]]
-        for pos in direction:
+        still_possible = np.nonzero(self.word_by_letter[pos_in_word][deleted_char] < 0)[0]
+        word_nums = [i for i in self.nums_by_letter[pos_in_word][deleted_char][still_possible]]
+        for pos in word_nums:
             self.del2(pos)
         for pos in range(len(self.word_by_letter)):
             for letter in self.word_by_letter[pos]:
-                if len(self.word_by_letter[pos][letter]) == 0 and letter in self.cell_list[pos][0].possible_chars and (pos != pos_in_word or letter != deleted_char):
-                    box, direction = (self.cell_list[pos][m] for m in range(2))
+                if all(self.word_by_letter[pos][letter] > 0) and letter in self.cell_list[pos][0].possible_chars and (pos != pos_in_word or letter != deleted_char):
+                    box, word_nums = (self.cell_list[pos][m] for m in range(2))
                     box.possible_chars[box.possible_chars.index(letter)] = 0
-                    box.wordlists[1 - direction].delete_by_char(box.crossword.wr1[1 - direction][box.row][box.col], letter)
+                    box.wordlists[1 - word_nums].delete_by_char(box.crossword.wr1[1 - word_nums][box.row][box.col], letter)
 
-    def deepcopy(self):
+    '''def deepcopy(self):
         # print(5)
         # print(vars(self).keys())
         wl2 = WordList(self.wordlist)
@@ -309,7 +339,7 @@ class WordList(object):
             wl2.wordnums = deepcopy(wl2[i])
         return wl2
         # print(5)
-
+'''
 
 class Box(object):
     def __init__(self, cw, x, y):
@@ -334,7 +364,7 @@ class Box(object):
     def make_black(self):
         self.is_black = True
 
-    def deepcopy(self, cw):
+    '''def deepcopy(self, cw):
         # print(6)
         # print(vars(self).keys())
         b2 = Box(cw, self.col, self.row)
@@ -342,6 +372,7 @@ class Box(object):
         b2.create_box()
         # print(6)
         return b2
+'''
 
 
 '''cw1=CM(8,7,[[0,3],[6,3],[3,4]])
