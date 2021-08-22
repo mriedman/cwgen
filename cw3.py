@@ -51,6 +51,7 @@ class CM(object):
         self.width = width
         self.boxes = boxes
         self.grid = [['' for _ in range(width)] for _ in range(height)]
+        self.grid_history = np.zeros((height, width), int) - 1
         # self.box_array=[[copy(alphabet) for i in range(wordlist1)] for j in range(height)]
         self.box_array = [[Box(self, i, j) for i in range(width)] for j in range(height)]
         self.clue_num_list = [[[0 for _ in range(width)] for _ in range(height)] for _ in range(2)]
@@ -59,6 +60,7 @@ class CM(object):
         self.words_info = []
         self.wr1 = [[[0 for _ in range(width)] for _ in range(height)] for _ in range(2)]
         self.words_inserted = 0
+        self.clue_nums_filled = []
         for box in boxes:
             self.grid[box[1]][box[0]] = '#'
             self.box_array[box[1]][box[0]].make_black()
@@ -109,7 +111,12 @@ class CM(object):
             if self.box_array[row_num][col].cc(word[col - col_num]) and not (self.grid[row_num][col] == '' or self.grid[row_num][col] == word[col - col_num]):
                 raise SystemExit('Word Doesn\'tries Fit with other Words')
             self.grid[row_num][col] = word[col - col_num]
-            self.box_array[row_num][col].possible_chars = [word[col - col_num]]
+            if self.grid_history[row_num][col] == -1:
+                self.grid_history[row_num][col] = self.words_inserted
+            # self.box_array[row_num][col].possible_chars = [word[col - col_num]]
+            box = self.box_array[row_num][col]
+            box.char_history[box.char_history < 0] = self.words_inserted
+            box.char_history[alphabet.index(word[col - col_num])] = -1
             self.full_word_list[self.clue_num_list[0][row_num][col]].unfilled = False
             '''try:
                 self.reduce1(col, row_num, 1)
@@ -125,7 +132,12 @@ class CM(object):
             if self.box_array[i][row_num].cc(word[i - col_num]) and not (self.grid[i][row_num] == '' or self.grid[i][row_num] == word[i - col_num]):
                 raise ValueError('Word Doesn\'tries Fit with other Words')
             self.grid[i][row_num] = word[i - col_num]
-            self.box_array[i][row_num].possible_chars = [word[i - col_num]]
+            if self.grid_history[i][row_num] == -1:
+                self.grid_history[i][row_num] = self.words_inserted
+            # self.box_array[i][row_num].possible_chars = [word[i - col_num]]
+            box = self.box_array[i][row_num]
+            box.char_history[box.char_history < 0] = self.words_inserted
+            box.char_history[alphabet.index(word[i - col_num])] = -1
             self.full_word_list[self.clue_num_list[1][i][row_num]].unfilled = False
             self.reduce1(row_num, i, 0)
 
@@ -134,7 +146,6 @@ class CM(object):
             self.insert_across_word(word, row_num, col_num)
         elif i == 1:
             self.insert_down_word(word, row_num, col_num)
-        self.words_inserted += 1
         for words in self.full_word_list:
             words.words_inserted = self.words_inserted
 
@@ -155,6 +166,7 @@ class CM(object):
             if is_inserted:
                 self.words_inserted += 1
                 break
+        self.clue_nums_filled.append(slot_num)
 
     def __str__(self):
         s = ''
@@ -183,39 +195,85 @@ class CM(object):
             next_word = self.full_word_list[n].choice()
             if next_word is not None:
                 self.insert_by_number(next_word, n)
+                return True
             else:
-                raise Exception('Not right now')
+                return False
 
     def reduce1(self, col_num, row_num, direction):
         grid_char = self.grid[row_num][col_num]
         clue_num = self.clue_num_list[direction][row_num][col_num]
 
-        # [col, row, length]
+        # word_info: [col, row, length]
         word_info = self.words_info[clue_num]
         full_word_list = self.full_word_list[clue_num]
         deleted = 0
         for j in range(len(full_word_list)):
             if full_word_list[j - deleted][[col_num, row_num][direction] - word_info[direction]] != grid_char:
                 del full_word_list[j - deleted]
-                # deleted += 1
         for i in range(word_info[2]):
             row, col = word_info[1] + direction * i, word_info[0] + (1 - direction) * i
-            deleted = 0
             if self.grid[row][col] == '':
                 box = self.box_array[row][col]
-                for j in range(len(box.possible_chars)):
-                    next_char = box.possible_chars[j - deleted]
-                    if next_char == 0:
+                for j in range(len(box.char_set)):
+                    if not box.cc(box.char_set[j]):
+                        continue
+                    # next_char = box.possible_chars()[j - deleted]
+                    next_char = box.char_set[j]
+                    '''if next_char == 0:
                         del box.possible_chars[j - deleted]
                         deleted += 1
-                        continue
+                        continue'''
                     if all(self.full_word_list[clue_num].word_by_letter[i][next_char] >= 0):
                         possible_words = box.wordlists[1 - direction]
                         possible_words.delete_by_char(self.wr1[1 - direction][row][col], next_char)
-                        del box.possible_chars[j - deleted]
-                        deleted += 1
+                        # del box.possible_chars[j - deleted]
+                        box.char_history[j] = self.words_inserted
+                        # deleted += 1
+
+    def roll_back(self):
+        print('Rollback Time!')
+        self.words_inserted -= 1
+        # Grid fill
+        letters_to_revert = np.array(np.nonzero(self.grid_history == self.words_inserted)).T
+        for square in letters_to_revert:
+            self.grid[square[0]][square[1]] = ''
+
+        # WordLists
+        for words in self.full_word_list:
+            words.wordnums[words.wordnums == self.words_inserted] = -1
+            for pos_list in words.word_by_letter:
+                for letter in pos_list:
+                    pos_list[letter][pos_list[letter] == self.words_inserted] = -1
+
+        self.full_word_list[self.clue_nums_filled.pop()].unfilled = True
+
+        # Boxes
+        for row in self.box_array:
+            for box in row:
+                box.char_history[box.char_history == self.words_inserted] = -1
+
+        print(self)
 
     def fill_puzzle(self, max_attempts=7):
+        for _ in range(500):
+            print(self)
+            # [clue_num, num of possible words for that clue]
+            n = [0, 10 ** 9]
+            for idx, words in enumerate(self.full_word_list):
+                # print('Nums:', idx, ':', len(words))
+                # possible_words = np.sum(words.wordnums < 0)
+                possible_words = words.possible_word_equiv()
+                if possible_words < n[1] and words.unfilled:
+                    n = [idx, possible_words]
+            if n == [0, 10 ** 9]:
+                return self
+            res = self.frw(n[0], 1)
+            if not res:
+                # raise Exception('Later...')
+                self.roll_back()
+
+    # Uses tail recursion, deprecated
+    '''def fill_puzzle1(self, max_attempts=7):
         print(self)
         # [clue_num, num of possible words for that clue]
         n = [0, 10 ** 6]
@@ -231,12 +289,14 @@ class CM(object):
             # THIS IS IT RIGHT HERE!!!
             # cw1 = deepcopy(self)
             cw1 = self
-            cw1.frw(n[0], 1)
+            res = cw1.frw(n[0], 1)
+            if not res:
+                self.roll_back()
             cw1.fill_puzzle(max_attempts)
             return cw1
             # except IndexError:
             #     pass
-        raise IndexError('')
+        raise IndexError('')'''
 
     '''def __deepcopy__(self):
         cw1 = CM(self.height, self.width, self.boxes)
@@ -326,26 +386,28 @@ class WordList(object):
             self.del2(pos)
         for pos in range(len(self.word_by_letter)):
             for letter in self.word_by_letter[pos]:
-                if all(self.word_by_letter[pos][letter] > 0) and letter in self.cell_list[pos][0].possible_chars and (pos != pos_in_word or letter != deleted_char):
+                if all(self.word_by_letter[pos][letter] > 0) and letter in self.cell_list[pos][0].possible_chars() and (pos != pos_in_word or letter != deleted_char):
                     box, word_nums = (self.cell_list[pos][m] for m in range(2))
-                    box.possible_chars[box.possible_chars.index(letter)] = 0
+                    box.char_history[alphabet.index(letter)] = self.words_inserted
                     box.wordlists[1 - word_nums].delete_by_char(box.crossword.wr1[1 - word_nums][box.row][box.col], letter)
 
-    '''def deepcopy(self):
-        # print(5)
-        # print(vars(self).keys())
-        wl2 = WordList(self.wordlist)
-        for i in ['wordnums', 'num_to_word', 'word_by_letter', 'cell_list']:
-            wl2.wordnums = deepcopy(wl2[i])
-        return wl2
-        # print(5)
-'''
+    def possible_word_equiv(self):
+        word_sum = 0
+        val_conv_chart = {'60': 100, '50': 50, '30': 25, '25': 20, '20': 15, '15': 5, '10': 2, '5': 1}
+        len_conv_chart = {3: 10, 4: 10, 5: 15, 6: 25, 7: 35, 8: 50, 9: 75, 10: 100, 11: 100, 12: 100, 13: 100, 14: 100,
+                          15: 100, 16: 100, 17: 100, 18: 100, 19: 100, 20: 100, 21: 100}
+        for idx, word in enumerate(self.wordlist):
+            if self.wordnums[idx] == -1:
+                word_sum += val_conv_chart[self.word_values[word]]
+        return word_sum / len_conv_chart[len(self.wordlist[0])]
+
 
 class Box(object):
     def __init__(self, cw, x, y):
         self.crossword = cw
         self.col, self.row = x, y
-        self.possible_chars = copy(alphabet)
+        self.char_set = np.array(copy(alphabet))
+        self.char_history = np.zeros(len(alphabet), int) - 1
         self.is_black = False
         self.wordlists = []
 
@@ -356,8 +418,11 @@ class Box(object):
         for i in range(2):
             self.wordlists[i].cell_list[self.crossword.wr1[i][self.row][self.col]] = [self, i]
 
+    def possible_chars(self):
+        return list(self.char_set[self.char_history < 0])
+
     def cc(self, c):
-        if c in self.possible_chars:
+        if c in self.possible_chars():
             return True
         return False
 
