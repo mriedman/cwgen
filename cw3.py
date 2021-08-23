@@ -4,7 +4,6 @@ import json
 from collections import defaultdict
 import numpy as np
 from typing import Final, List, Dict
-from time import time
 
 alphabet = [i for i in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
 
@@ -17,24 +16,26 @@ for i in list(xwi_wordlist1.keys()):
     # if int(i) == 25:
     #     xwi_wordlist1[i] = [j for j in xwi_wordlist1[i] if len(j) == 3]
 
-xwi_words_by_length = [{i: [word for word in xwi_wordlist1[i] if len(word) == j] for i in xwi_wordlist1} for j in range(22)]
+xwi_words_by_length = [{i: [word for word in xwi_wordlist1[i] if len(word) == j] for i in xwi_wordlist1}
+                       for j in range(22)]
 
 
 class CM(object):
     words_by_length = xwi_words_by_length
 
-    def __init__(self, height: int, width: int, boxes: List[List[int]]):
+    def __init__(self, height: int, width: int, boxes: str):
         # CONSTANTS- not to be changed outside __init__
         # Grid height
         self.height: Final[int] = height
         # Grid width
         self.width: Final[int] = width
         # Grid boxes as [col, row]
-        self.boxes: Final[List[List[int]]] = boxes
+        self.boxes: Final[List[List[int]]] = [[k, i] for i, j in enumerate(boxes.split('\n')[1:-1]) for k, k1 in enumerate(j) if k1 == 'x']
         # Contains Box objects for each grid tile
         self.box_array: Final[List[List[Box]]] = [[Box(self, i, j) for i in range(width)] for j in range(height)]
         # Grid containing clue indices for across and down boxes in a grid
-        self.clue_num_list: List[List[List[int]]] = [[[0 for _ in range(width)] for _ in range(height)] for _ in range(2)]
+        self.clue_num_list: List[List[List[int]]] = \
+            [[[0 for _ in range(width)] for _ in range(height)] for _ in range(2)]
         # [num_across, num_clues]
         self.num_words_to_fill: Final[List[int]] = []
         # List of WordLists
@@ -51,7 +52,7 @@ class CM(object):
         # Word insertion on which a grid character was fixed (-1 means unfilled)
         self.grid_history = np.zeros((height, width), int) - 1
 
-        for box in boxes:
+        for box in self.boxes:
             self.grid[box[1]][box[0]] = '#'
             self.box_array[box[1]][box[0]].make_black()
             self.clue_num_list[0][box[1]][box[0]] = -1
@@ -60,7 +61,9 @@ class CM(object):
         for i in range(2):
             for row_num in range(height):
                 for col_num in range(width):
-                    if self.clue_num_list[i][row_num][col_num] != -1 and (row_num * i + col_num * (1 - i) == 0 or self.clue_num_list[i][row_num - i][col_num - 1 + i] == -1):
+                    if self.clue_num_list[i][row_num][col_num] != -1 and \
+                            (row_num * i + col_num * (1 - i) == 0 or
+                             self.clue_num_list[i][row_num - i][col_num - 1 + i] == -1):
                         coord1, coord2 = row_num * i + col_num * (1 - i), row_num * i + col_num * (1 - i)
                         while coord1 < [width, height][i] and self.get_box_by_order(self.clue_num_list[i], [row_num, col_num][i], coord1, i) != -1:
                             coord1 += 1
@@ -70,9 +73,9 @@ class CM(object):
                             self.main_wordlist_dict[word_len] = MainWordList(self.words_by_length[word_len])
                         self.full_word_list.append(WordList(self.main_wordlist_dict[word_len]))
 
-                        for l in range(coord2, coord1):
-                            self.set_box_by_order(self.wr1[i], l - coord2, [row_num, col_num][i], l, i)
-                            self.set_box_by_order(self.clue_num_list[i], clue_num, [row_num, col_num][i], l, i)
+                        for idx in range(coord2, coord1):
+                            self.set_box_by_order(self.wr1[i], idx - coord2, [row_num, col_num][i], idx, i)
+                            self.set_box_by_order(self.clue_num_list[i], clue_num, [row_num, col_num][i], idx, i)
                         self.words_info.append([col_num, row_num, word_len])
                         clue_num += 1
             self.num_words_to_fill.append(clue_num)
@@ -80,7 +83,7 @@ class CM(object):
             for row_num in i:
                 row_num.create_box()
 
-        for i in self.clue_num_list:
+        '''for i in self.clue_num_list:
             for j in i:
                 for k in j:
                     if k >= 0:
@@ -88,7 +91,8 @@ class CM(object):
                     else:
                         print('## ', end='')
                 print()
-            print()
+            print()'''
+        # self.show_slot_nums()
 
     @staticmethod
     def get_box_by_order(wordlist, coord1, coord2, coord_order):
@@ -129,7 +133,6 @@ class CM(object):
             self.grid[i][row_num] = word[i - col_num]
             if self.grid_history[i][row_num] == -1:
                 self.grid_history[i][row_num] = self.words_inserted
-            # self.box_array[i][row_num].possible_chars = [word[i - col_num]]
             box = self.box_array[i][row_num]
             box.char_history[box.char_history < 0] = self.words_inserted
             box.char_history[alphabet.index(word[i - col_num])] = -1
@@ -141,8 +144,6 @@ class CM(object):
             self.insert_across_word(word, row_num, col_num)
         elif i == 1:
             self.insert_down_word(word, row_num, col_num)
-        '''for words in self.full_word_list:
-            words.words_inserted = self.words_inserted'''
         for word_len in self.main_wordlist_dict:
             self.main_wordlist_dict[word_len].words_inserted = self.words_inserted + 1
 
@@ -176,14 +177,48 @@ class CM(object):
             s += '\n'
         return s
 
-    def frw(self, n, tries):
-        for i in range(tries):
-            next_word = self.full_word_list[n].choice()
-            if next_word is not None:
-                self.insert_by_number(next_word, n)
-                return next_word, n
-            else:
-                return None
+    def str_with_slot_num(self, slot_num):
+        if slot_num < self.num_words_to_fill[0]:
+            direction = 0
+        elif slot_num < self.num_words_to_fill[1]:
+            direction = 1
+        else:
+            raise ValueError('Slot number too high.')
+        s = ''
+        for i0, i in enumerate(self.grid):
+            for j0, j in enumerate(i):
+                if j == '':
+                    if self.clue_num_list[direction][i0][j0] == slot_num:
+                        s += '?'
+                    else:
+                        s += '-'
+                else:
+                    s += j
+            s += '\n'
+        return s
+
+    def show_slot_nums(self):
+        a = ['Across:', 'Down:']
+        for i in self.clue_num_list:
+            print(a.pop(0))
+            for j in i:
+                for k in j:
+                    if k >= 0:
+                        print('%2d ' % (k,), end='')
+                    else:
+                        print('## ', end='')
+                print()
+            print()
+
+    def frw(self, n, auto=True):
+        # Auto code indicates if a choice other than inserting a word was made
+        print(self.str_with_slot_num(n))
+        next_word, auto_code = self.full_word_list[n].choice(auto, self.show_slot_nums)
+        if auto_code == -1:
+            self.insert_by_number(next_word, n)
+            return next_word, n, auto_code
+        else:
+            return next_word, None, auto_code
 
     def reduce(self, col_num, row_num, direction):
         grid_char = self.grid[row_num][col_num]
@@ -191,11 +226,9 @@ class CM(object):
 
         # word_info: [col, row, length]
         word_info = self.words_info[clue_num]
-        full_word_list = self.full_word_list[clue_num]
-        # for j in range(len(full_word_list)):
-        #     if full_word_list[j][[col_num, row_num][direction] - word_info[direction]] != grid_char:
-        #         del full_word_list[j]
-        full_word_list.del_mult(np.nonzero(full_word_list.wordlist_arr[:, [col_num, row_num][direction] - word_info[direction]] != grid_char)[0])
+        word_list = self.full_word_list[clue_num]
+        words_to_delete = word_list.wordlist_arr[:, [col_num, row_num][direction] - word_info[direction]] != grid_char
+        word_list.del_mult(np.nonzero(words_to_delete)[0])
 
         for i in range(word_info[2]):
             row, col = word_info[1] + direction * i, word_info[0] + (1 - direction) * i
@@ -253,10 +286,11 @@ class CM(object):
 
         print('Done with rollback!')
 
-    def fill_puzzle(self):
-        last_words, last_nums = [], []
+    def fill_puzzle(self, auto=True):
+        last_words, last_nums, preferred_slot_num = [], [], -1
+        target = -1
         for _ in range(500):
-            print(self)
+            # print(self)
             # [clue_num, num of possible words for that clue]
             n = [0, 10 ** 9]
             for idx, words in enumerate(self.full_word_list):
@@ -265,12 +299,27 @@ class CM(object):
                     n = [idx, possible_words]
             if n == [0, 10 ** 9]:
                 return self
-            res = self.frw(n[0], 1)
-            if res:
+            if preferred_slot_num >= 0:
+                n[0] = preferred_slot_num
+            res = self.frw(n[0], auto or _ < target)
+            preferred_slot_num = -1
+            if res[2] == -1:
                 last_words.append(res[0])
                 last_nums.append(res[1])
-            else:
+            elif res[2] == -2:
                 self.roll_back(last_words.pop(), last_nums.pop())
+            elif res[2] == -3:
+                target = _ + res[0] + 1
+            elif res[2] == -4:
+                print('Exiting...')
+                exit(0)
+            elif res[2] >= 0:
+                if self.full_word_list[res[2]].unfilled:
+                    preferred_slot_num = res[2]
+                else:
+                    print('This slot number is already filled in!')
+            else:
+                raise ValueError('Unknown auto code')
         return self
 
 
@@ -320,29 +369,72 @@ class WordList(object):
     def __getitem__(self, item):
         return self.get_word(item)
 
-    def choice(self):
+    def choice(self, auto=True, slots=None):
         by_value = defaultdict(list)
-        for word_num in np.nonzero(self.wordnums < 0)[0]:
+        word_nums = np.nonzero(self.wordnums < 0)[0]
+        np.random.shuffle(word_nums)
+        for word_num in word_nums:
             by_value[self.main_wordlist.word_values[self.wordlist[word_num]]].append(self.wordlist[word_num])
         if len(by_value.keys()) > 0:
             print('Next Word Value:', max(by_value.keys()))
         else:
             print('No words found!')
-            return None
-        word = choice(by_value[max(by_value.keys())])
-        print(word)
-        return word
-
-    '''def __delitem__(self, key):
-        self.del2(key)
-
-    def del2(self, word_num):
-        word = self.wordlist[word_num]
-        for idx, letter in enumerate(word):
-            if self.word_by_letter[idx][letter][self.main_wordlist.nums_by_letter_rev[idx][word_num]] == -1:
-                self.word_by_letter[idx][letter][self.main_wordlist.nums_by_letter_rev[idx][word_num]] = self.main_wordlist.words_inserted
-        if self.wordnums[word_num] == -1:
-            self.wordnums[word_num] = self.main_wordlist.words_inserted'''
+            return None, -2
+        if auto:
+            word = choice(by_value[max(by_value.keys())])
+            print(word)
+            return word, -1
+        else:
+            possible_words = [j for i in sorted(list(by_value.keys()))[-1::-1] for j in by_value[i]]
+            words_to_give = 10
+            words_given = 0
+            while True:
+                if words_given < len(possible_words):
+                    print(f'Here are {min(words_to_give, len(possible_words) - words_given)} '
+                          f'{"more " if words_given > 0 else ""}words out of'
+                          f' {len(possible_words)}: {", ".join(possible_words[words_given:words_to_give+words_given])}')
+                else:
+                    print('There are no more words on the wordlist.')
+                print('To choose a word, type it. To see 10 more words, type m10. To delete your last word, type d. '
+                      'To switch to a different slot number, type s[num]. To see the slot numbers, type c. '
+                      'To try 5 words automatically, type a5. To quit, type q.')
+                words_given += words_to_give
+                next_word = input()
+                if next_word in possible_words:
+                    return next_word, -1
+                elif next_word[0] == 'm':
+                    try:
+                        words_to_give = int(next_word[1:])
+                    except ValueError:
+                        print("I couldn't understand your response. Please try again.")
+                elif next_word == 'd':
+                    return None, -2
+                elif next_word == 'c':
+                    slots()
+                elif next_word[0] == 's':
+                    try:
+                        new_slot_num = int(next_word[1:])
+                        return None, new_slot_num
+                    except ValueError:
+                        print("I couldn't understand your response. Please try again.")
+                elif next_word[0] == 'a':
+                    try:
+                        auto_words = int(next_word[1:])
+                        return auto_words, -3
+                    except ValueError:
+                        print("I couldn't understand your response. Please try again.")
+                elif next_word == 'q':
+                    return None, -4
+                elif len(next_word) == len(possible_words[0]) and all(ord(i) < 97 or ord(i) > 122 for i in next_word):
+                    print('This word is not in my wordlist. Would you like to use it anyway? [Y/N]')
+                    res = input()
+                    if res in ['Y', 'YES', 'Yes', 'yes', 'y']:
+                        print('Sorry, but at this time, I cannot accept words off the word list.')
+                        # return next_word, -1
+                elif len(next_word) == len(possible_words[0]):
+                    print("I couldn't understand your response. Remember: words must be provided in all caps.")
+                else:
+                    print("I couldn't understand your response. Please try again.")
 
     def del_mult(self, del_word_nums):
         words = self.wordlist_arr[del_word_nums]
@@ -361,10 +453,7 @@ class WordList(object):
 
     def delete_by_char(self, pos_in_word, deleted_char):
         still_possible = np.nonzero(self.word_by_letter[pos_in_word][deleted_char] < 0)[0]
-        # word_nums = [i for i in self.main_wordlist.nums_by_letter[pos_in_word][deleted_char][still_possible]]
         word_nums = self.main_wordlist.nums_by_letter[pos_in_word][deleted_char][still_possible]
-        # for pos in word_nums:
-        #     self.del2(pos)
         self.del_mult(word_nums)
         for pos in range(len(self.word_by_letter)):
             for letter in self.word_by_letter[pos]:
@@ -473,9 +562,9 @@ x....xx....x...
 ...x......x....
 '''
 
-boxes = [[k, i] for i, j in enumerate(wed_boxes0.split('\n')[1:-1]) for k, k1 in enumerate(j) if k1 == 'x']
-print(boxes)
+# boxes = [[k, i] for i, j in enumerate(wed_boxes0.split('\n')[1:-1]) for k, k1 in enumerate(j) if k1 == 'x']
+# print(boxes)
 
-cw1 = CM(15, 15, boxes)
-print(cw1)
-print(cw1.fill_puzzle())
+cw1 = CM(15, 15, wed_boxes0)
+# print(cw1)
+print(cw1.fill_puzzle(auto=False))

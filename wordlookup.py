@@ -6,6 +6,7 @@ import numpy as np
 with open('xwilist.json') as f:
     wordlist = json.load(f)
 
+
 def check_word(s):
     found = False
     for i in wordlist:
@@ -16,6 +17,7 @@ def check_word(s):
     if not found:
         return -1
 
+
 def change_letter(c1, c2):
     flatlist = [i for j in wordlist for i in wordlist[j]]
     for i in flatlist:
@@ -24,6 +26,7 @@ def change_letter(c1, c2):
                 if k == c1:
                     if i[:j] + c2 + ('' if j == len(i) - 1 else i[j+1:]) in flatlist:
                         print(i, i[:j] + c2 + ('' if j == len(i) - 1 else i[j+1:]))
+
 
 def check_xword(xw):
     xws = xw.split('\n')
@@ -62,9 +65,8 @@ def benchmark():
     print(six_arr[a][:10])
 
 
-
-while False:
-    check_word(input())
+while True:
+    print(check_word(input()))
 
 
 xw = '''HETUP#ZOOM#SDSU
@@ -147,5 +149,5 @@ API#BEERGARDENS
 TAT#ILENES#RIEL
 EDH#CYPHER#ENDY'''
 
-check_xword(xw5)
+# check_xword(xw5)
 # benchmark()
