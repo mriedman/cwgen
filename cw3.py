@@ -10,6 +10,12 @@ alphabet = [i for i in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ']
 with open('xwilist.json') as f:
     xwi_wordlist1 = json.load(f)
 
+for i in list(xwi_wordlist1.keys()):
+    if int(i) < 25:
+        del xwi_wordlist1[i]
+    # if int(i) == 25:
+    #     xwi_wordlist1[i] = [j for j in xwi_wordlist1[i] if len(j) == 3]
+
 xwi_words_by_length = [{i: [word for word in xwi_wordlist1[i] if len(word) == j] for i in xwi_wordlist1} for j in range(22)]
 
 
@@ -34,7 +40,7 @@ class CM(object):
         self.full_word_list: Final[List[WordList]] = []
         self.words_info = []
         self.wr1 = [[[0 for _ in range(width)] for _ in range(height)] for _ in range(2)]
-        self.words_inserted = 0
+        self.words_inserted = 1
         self.clue_nums_filled = []
         self.main_wordlist_dict: Final[Dict[int, MainWordList]] = {}
 
@@ -137,7 +143,7 @@ class CM(object):
         '''for words in self.full_word_list:
             words.words_inserted = self.words_inserted'''
         for word_len in self.main_wordlist_dict:
-            self.main_wordlist_dict[word_len].words_inserted = self.words_inserted
+            self.main_wordlist_dict[word_len].words_inserted = self.words_inserted + 1
 
     def insert_by_number(self, word, slot_num):
         if slot_num < self.num_words_to_fill[0]:
@@ -155,8 +161,8 @@ class CM(object):
                     break
             if is_inserted:
                 self.words_inserted += 1
+                self.clue_nums_filled.append(slot_num)
                 break
-        self.clue_nums_filled.append(slot_num)
 
     def __str__(self):
         s = ''
@@ -174,9 +180,9 @@ class CM(object):
             next_word = self.full_word_list[n].choice()
             if next_word is not None:
                 self.insert_by_number(next_word, n)
-                return True
+                return next_word, n
             else:
-                return False
+                return None
 
     def reduce(self, col_num, row_num, direction):
         grid_char = self.grid[row_num][col_num]
@@ -198,11 +204,14 @@ class CM(object):
                     next_char = box.char_set[j]
                     if all(self.full_word_list[clue_num].word_by_letter[i][next_char] >= 0):
                         possible_words = box.wordlists[1 - direction]
-                        possible_words.delete_by_char(self.wr1[1 - direction][row][col], next_char)
+                        still_possible = possible_words.delete_by_char(self.wr1[1 - direction][row][col], next_char)
+                        # if still_possible == -1:
+                        #     return -1
                         box.char_history[j] = self.words_inserted
+            return 0
 
-    def roll_back(self):
-        print('Rollback Time!')
+    def roll_back(self, last_word, last_num):
+        print('Rollback Time! Word:', last_word)
         self.words_inserted -= 1
         # Grid fill
         letters_to_revert = np.array(np.nonzero(self.grid_history == self.words_inserted)).T
@@ -218,7 +227,7 @@ class CM(object):
                     pos_list[letter][pos_list[letter] == self.words_inserted] = -1
 
         for word_len in self.main_wordlist_dict:
-            self.main_wordlist_dict[word_len].words_inserted = self.words_inserted
+            self.main_wordlist_dict[word_len].words_inserted = self.words_inserted - 1
 
         self.full_word_list[self.clue_nums_filled.pop()].unfilled = True
 
@@ -227,25 +236,38 @@ class CM(object):
             for box in row:
                 box.char_history[box.char_history == self.words_inserted] = -1
 
+        # Don't try previous word again
+        self.words_inserted -= 1
+        for word_len in self.main_wordlist_dict:
+            self.main_wordlist_dict[word_len].words_inserted = self.words_inserted - 1
+
+        self.full_word_list[last_num].del2(self.full_word_list[last_num].main_wordlist.word_to_num[last_word])
+
+        self.words_inserted += 1
+        for word_len in self.main_wordlist_dict:
+            self.main_wordlist_dict[word_len].words_inserted = self.words_inserted - 1
+
         print('Done with rollback!')
 
-    def fill_puzzle(self, max_attempts=7):
+    def fill_puzzle(self):
+        last_words, last_nums = [], []
         for _ in range(500):
             print(self)
             # [clue_num, num of possible words for that clue]
             n = [0, 10 ** 9]
             for idx, words in enumerate(self.full_word_list):
-                # print('Nums:', idx, ':', len(words))
-                # possible_words = np.sum(words.wordnums < 0)
                 possible_words = words.possible_word_equiv()
                 if possible_words < n[1] and words.unfilled:
                     n = [idx, possible_words]
             if n == [0, 10 ** 9]:
                 return self
             res = self.frw(n[0], 1)
-            if not res:
-                # raise Exception('Later...')
-                self.roll_back()
+            if res:
+                last_words.append(res[0])
+                last_nums.append(res[1])
+            else:
+                self.roll_back(last_words.pop(), last_nums.pop())
+        return self
 
 
 class MainWordList(object):
@@ -258,8 +280,7 @@ class MainWordList(object):
         self.word_to_num = {self.wordlist[i]: i for i in range(len(self.wordlist))}
         self.nums_by_letter = []
         self.nums_by_letter_rev = []
-        # self.cell_list = [{} for _ in range(len(self.wordlist[0]))]
-        self.words_inserted = 0
+        self.words_inserted = 1
 
         for letter_idx in range(len(self.wordlist[0])):
             nums_by_ith_letter = {i: [] for i in self.alphabet}
@@ -275,30 +296,13 @@ class WordList(object):
     alphabet = alphabet
 
     def __init__(self, main_wordlist: MainWordList):
-        # flatlist = [word for j in wordlist for word in wordlist[j]]
-        # self.wordlist = flatlist
         self.main_wordlist = main_wordlist
         self.wordlist = main_wordlist.wordlist
         self.wordnums = np.zeros(len(self.wordlist), int) - 1
-        # self.word_values = {word: v for v in wordlist for word in wordlist[v]}
-        # self.num_to_word = {i: self.wordlist[i] for i in range(len(self.wordlist))}
-        # self.word_to_num = {self.wordlist[i]: i for i in range(len(self.wordlist))}
         self.word_by_letter = []
-        # self.nums_by_letter = []
-        # self.nums_by_letter_rev = []
         self.cell_list = [{} for _ in range(len(self.wordlist[0]))]
         self.unfilled = True
-        # self.words_inserted = 0
 
-        '''for letter_idx in range(len(self.wordlist[0])):
-            nums_by_ith_letter = {i: [] for i in self.alphabet}
-            nums_by_ith_letter_rev = {}
-            for wordlist_idx in range(len(self.wordlist)):
-                nums_by_ith_letter_rev[wordlist_idx] = len(nums_by_ith_letter[self.wordlist[wordlist_idx][letter_idx]])
-                nums_by_ith_letter[self.wordlist[wordlist_idx][letter_idx]].append(wordlist_idx)
-            self.nums_by_letter.append({i: np.array(nums_by_ith_letter[i]) for i in nums_by_ith_letter})
-            self.nums_by_letter_rev.append(nums_by_ith_letter_rev)
-            self.word_by_letter.append({letter: np.zeros(len(nums_by_ith_letter[letter]), int) - 1 for letter in nums_by_ith_letter})'''
         for letter_pos in self.main_wordlist.nums_by_letter:
             self.word_by_letter.append({letter: np.zeros(letter_pos[letter].shape, int) - 1 for letter in letter_pos})
 
@@ -348,7 +352,10 @@ class WordList(object):
                 if all(self.word_by_letter[pos][letter] > 0) and letter in self.cell_list[pos][0].possible_chars() and (pos != pos_in_word or letter != deleted_char):
                     box, word_nums = (self.cell_list[pos][m] for m in range(2))
                     box.char_history[alphabet.index(letter)] = self.main_wordlist.words_inserted
+                    # if not self.cell_list[pos][0].possible_chars():
+                    #     return -1
                     box.wordlists[1 - word_nums].delete_by_char(box.crossword.wr1[1 - word_nums][box.row][box.col], letter)
+        return 0
 
     def possible_word_equiv(self):
         word_sum = 0
@@ -389,11 +396,11 @@ class Box(object):
         self.is_black = True
 
 
-'''cws = [[5, 0], [5, 1], [5, 2], [10, 0], [10, 1], [10, 2], [0, 4], [1, 4], [2, 4], [3, 4], [8, 3], [7, 4], [7, 5],
+cws = [[5, 0], [5, 1], [5, 2], [10, 0], [10, 1], [10, 2], [0, 4], [1, 4], [2, 4], [3, 4], [8, 3], [7, 4], [7, 5],
        [6, 6], [5, 6], [5, 7], [4, 8], [3, 9],
        [0, 10], [1, 10], [13, 4], [14, 4], [11, 5], [10, 6], [9, 7], [9, 8], [8, 8], [7, 9], [7, 10], [6, 11], [4, 12],
-       [4, 13], [4, 14], [10, 12], [10, 13], [10, 14], [11, 10], [12, 10], [13, 10], [14, 10]]'''
-boxes0 = '''
+       [4, 13], [4, 14], [10, 12], [10, 13], [10, 14], [11, 10], [12, 10], [13, 10], [14, 10]]
+saturday_boxes0 = '''
 .......x.......
 .......x.......
 .......x.......
@@ -411,9 +418,27 @@ xx....x....x...
 .......x.......
 '''
 
+boxes0 = '''
+.........x.....
+.........x.....
+.........x.....
+.....x.........
+xxx....x.......
+......x.......x
+.........x.....
+...xx.....xx...
+.....x.........
+x.......x......
+.......x....xxx
+.........x.....
+.....x.........
+.....x.........
+.....x.........
+'''
+
 boxes = [[k, i] for i, j in enumerate(boxes0.split('\n')[1:-1]) for k, k1 in enumerate(j) if k1 == 'x']
 print(boxes)
 
-cw1 = CM(15, 15, boxes)
+cw1 = CM(15, 15, cws)
 print(cw1)
-cw1.fill_puzzle(7)
+print(cw1.fill_puzzle())
