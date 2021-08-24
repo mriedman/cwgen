@@ -457,12 +457,14 @@ class WordList(object):
         self.del_mult(word_nums)
         for pos in range(len(self.word_by_letter)):
             for letter in self.word_by_letter[pos]:
-                if all(self.word_by_letter[pos][letter] > 0) and letter in self.cell_list[pos][0].possible_chars() and (pos != pos_in_word or letter != deleted_char):
-                    box, word_nums = (self.cell_list[pos][m] for m in range(2))
+                if np.all(self.word_by_letter[pos][letter] > 0) and letter in self.cell_list[pos][0].possible_chars() and (pos != pos_in_word or letter != deleted_char):
+                    box, direction = (self.cell_list[pos][m] for m in range(2))
                     box.char_history[alphabet.index(letter)] = self.main_wordlist.words_inserted
                     if not self.cell_list[pos][0].possible_chars():
                         return -1
-                    box.wordlists[1 - word_nums].delete_by_char(box.crossword.wr1[1 - word_nums][box.row][box.col], letter)
+                    res = box.wordlists[1 - direction].delete_by_char(box.crossword.wr1[1 - direction][box.row][box.col], letter)
+                    if res == -1:
+                        return -1
         return 0
 
     def possible_word_equiv(self):
