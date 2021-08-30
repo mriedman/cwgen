@@ -247,7 +247,7 @@ class CM(object):
             return 0
 
     def roll_back(self, last_word, last_num):
-        print('Rollback Time! Word:', last_word)
+        print('Deleting word:', last_word)
         self.words_inserted -= 1
         # Grid fill
         letters_to_revert = np.array(np.nonzero(self.grid_history == self.words_inserted)).T
@@ -278,13 +278,15 @@ class CM(object):
             self.main_wordlist_dict[word_len].words_inserted = self.words_inserted - 1
 
         # self.full_word_list[last_num].del2(self.full_word_list[last_num].main_wordlist.word_to_num[last_word])
-        self.full_word_list[last_num].del_mult(np.array([self.full_word_list[last_num].main_wordlist.word_to_num[last_word]]))
+        word_to_num = self.full_word_list[last_num].main_wordlist.word_to_num
+        if last_word in word_to_num:
+            self.full_word_list[last_num].del_mult(np.array([word_to_num[last_word]]))
 
         self.words_inserted += 1
         for word_len in self.main_wordlist_dict:
             self.main_wordlist_dict[word_len].words_inserted = self.words_inserted - 1
 
-        print('Done with rollback!')
+        print('Done deleting the word!')
 
     def fill_puzzle(self, auto=True):
         last_words, last_nums, preferred_slot_num = [], [], -1
@@ -354,6 +356,7 @@ class WordList(object):
     def __init__(self, main_wordlist: MainWordList):
         self.main_wordlist = main_wordlist
         self.wordlist = main_wordlist.wordlist
+        self.word_len = len(self.wordlist[0])
         self.wordlist_arr = main_wordlist.wordlist_arr
         self.wordnums = np.zeros(len(self.wordlist), int) - 1
         self.word_by_letter = []
@@ -379,7 +382,13 @@ class WordList(object):
             print('Next Word Value:', max(by_value.keys()))
         else:
             print('No words found!')
-            return None, -2
+            if not auto:
+                print('Would you like to delete the previous word? [Y/N]')
+                res = input()
+                if res not in ['N', 'n', 'NO', 'no', 'No']:
+                    return None, -2
+            else:
+                return None, -2
         if auto:
             word = choice(by_value[max(by_value.keys())])
             print(word)
@@ -425,13 +434,13 @@ class WordList(object):
                         print("I couldn't understand your response. Please try again.")
                 elif next_word == 'q':
                     return None, -4
-                elif len(next_word) == len(possible_words[0]) and all(ord(i) < 97 or ord(i) > 122 for i in next_word):
+                elif len(next_word) == self.word_len and all(ord(i) < 97 or ord(i) > 122 for i in next_word):
                     print('This word is not in my wordlist. Would you like to use it anyway? [Y/N]')
                     res = input()
                     if res in ['Y', 'YES', 'Yes', 'yes', 'y']:
-                        print('Sorry, but at this time, I cannot accept words off the word list.')
-                        # return next_word, -1
-                elif len(next_word) == len(possible_words[0]):
+                        # print('Sorry, but at this time, I cannot accept words off the word list.')
+                        return next_word, -1
+                elif len(next_word) == self.word_len:
                     print("I couldn't understand your response. Remember: words must be provided in all caps.")
                 else:
                     print("I couldn't understand your response. Please try again.")
