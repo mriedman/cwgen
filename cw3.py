@@ -42,7 +42,7 @@ class CM(object):
         self.full_word_list: Final[List[WordList]] = []
         self.words_info = []
         self.wr1 = [[[0 for _ in range(width)] for _ in range(height)] for _ in range(2)]
-        self.words_inserted = 1
+        self.words_inserted = [1]
         self.clue_nums_filled = []
         self.main_wordlist_dict: Final[Dict[int, MainWordList]] = {}
 
@@ -70,7 +70,7 @@ class CM(object):
                         word_len = coord1 - coord2
 
                         if word_len not in self.main_wordlist_dict:
-                            self.main_wordlist_dict[word_len] = MainWordList(self.words_by_length[word_len])
+                            self.main_wordlist_dict[word_len] = MainWordList(self.words_by_length[word_len], self.words_inserted)
                         self.full_word_list.append(WordList(self.main_wordlist_dict[word_len]))
 
                         for idx in range(coord2, coord1):
@@ -116,10 +116,10 @@ class CM(object):
                 raise SystemExit('Word Doesn\'tries Fit with other Words')
             self.grid[row_num][col] = word[col - col_num]
             if self.grid_history[row_num][col] == -1:
-                self.grid_history[row_num][col] = self.words_inserted
+                self.grid_history[row_num][col] = self.words_inserted[0]
             # self.box_array[row_num][col].possible_chars = [word[col - col_num]]
             box = self.box_array[row_num][col]
-            box.char_history[box.char_history < 0] = self.words_inserted
+            box.char_history[box.char_history < 0] = self.words_inserted[0]
             box.char_history[alphabet.index(word[col - col_num])] = -1
             self.full_word_list[self.clue_num_list[0][row_num][col]].unfilled = False
             self.reduce(col, row_num, 1)
@@ -132,9 +132,9 @@ class CM(object):
                 raise ValueError('Word Doesn\'t Fit with other Words')
             self.grid[i][row_num] = word[i - col_num]
             if self.grid_history[i][row_num] == -1:
-                self.grid_history[i][row_num] = self.words_inserted
+                self.grid_history[i][row_num] = self.words_inserted[0]
             box = self.box_array[i][row_num]
-            box.char_history[box.char_history < 0] = self.words_inserted
+            box.char_history[box.char_history < 0] = self.words_inserted[0]
             box.char_history[alphabet.index(word[i - col_num])] = -1
             self.full_word_list[self.clue_num_list[1][i][row_num]].unfilled = False
             self.reduce(row_num, i, 0)
@@ -144,8 +144,8 @@ class CM(object):
             self.insert_across_word(word, row_num, col_num)
         elif i == 1:
             self.insert_down_word(word, row_num, col_num)
-        for word_len in self.main_wordlist_dict:
-            self.main_wordlist_dict[word_len].words_inserted = self.words_inserted + 1
+        '''for word_len in self.main_wordlist_dict:
+            self.main_wordlist_dict[word_len].words_inserted = self.words_inserted + 1'''
 
     def insert_by_number(self, word, slot_num):
         if slot_num < self.num_words_to_fill[0]:
@@ -162,7 +162,7 @@ class CM(object):
                     is_inserted = True
                     break
             if is_inserted:
-                self.words_inserted += 1
+                self.words_inserted[0] += 1
                 self.clue_nums_filled.append(slot_num)
                 break
 
@@ -243,48 +243,48 @@ class CM(object):
                         still_possible = possible_words.delete_by_char(self.wr1[1 - direction][row][col], next_char)
                         if still_possible == -1:
                             return -1
-                        box.char_history[j] = self.words_inserted
+                        box.char_history[j] = self.words_inserted[0]
             return 0
 
     def roll_back(self, last_word, last_num):
         print('Deleting word:', last_word)
-        self.words_inserted -= 1
+        self.words_inserted[0] -= 1
         # Grid fill
-        letters_to_revert = np.array(np.nonzero(self.grid_history == self.words_inserted)).T
+        letters_to_revert = np.array(np.nonzero(self.grid_history == self.words_inserted[0])).T
         for square in letters_to_revert:
             self.grid[square[0]][square[1]] = ''
-        self.grid_history[self.grid_history == self.words_inserted] = -1
+        self.grid_history[self.grid_history == self.words_inserted[0]] = -1
 
         # WordLists
         for words in self.full_word_list:
-            words.wordnums[words.wordnums == self.words_inserted] = -1
+            words.wordnums[words.wordnums == self.words_inserted[0]] = -1
             for pos_list in words.word_by_letter:
                 for letter in pos_list:
-                    pos_list[letter][pos_list[letter] == self.words_inserted] = -1
+                    pos_list[letter][pos_list[letter] == self.words_inserted[0]] = -1
 
-        for word_len in self.main_wordlist_dict:
-            self.main_wordlist_dict[word_len].words_inserted = self.words_inserted - 1
+        '''for word_len in self.main_wordlist_dict:
+            self.main_wordlist_dict[word_len].words_inserted = self.words_inserted - 1'''
 
         self.full_word_list[self.clue_nums_filled.pop()].unfilled = True
 
         # Boxes
         for row in self.box_array:
             for box in row:
-                box.char_history[box.char_history == self.words_inserted] = -1
+                box.char_history[box.char_history == self.words_inserted[0]] = -1
 
         # Don't try previous word again
-        self.words_inserted -= 1
-        for word_len in self.main_wordlist_dict:
-            self.main_wordlist_dict[word_len].words_inserted = self.words_inserted - 1
+        self.words_inserted[0] -= 1
+        '''for word_len in self.main_wordlist_dict:
+            self.main_wordlist_dict[word_len].words_inserted = self.words_inserted'''
 
         # self.full_word_list[last_num].del2(self.full_word_list[last_num].main_wordlist.word_to_num[last_word])
         word_to_num = self.full_word_list[last_num].main_wordlist.word_to_num
         if last_word in word_to_num:
             self.full_word_list[last_num].del_mult(np.array([word_to_num[last_word]]))
 
-        self.words_inserted += 1
-        for word_len in self.main_wordlist_dict:
-            self.main_wordlist_dict[word_len].words_inserted = self.words_inserted - 1
+        self.words_inserted[0] += 1
+        '''for word_len in self.main_wordlist_dict:
+            self.main_wordlist_dict[word_len].words_inserted = self.words_inserted'''
 
         print('Done deleting the word!')
 
@@ -328,7 +328,7 @@ class CM(object):
 class MainWordList(object):
     alphabet = alphabet
 
-    def __init__(self, wordlist):
+    def __init__(self, wordlist, words_inserted):
         self.wordlist = [word for j in wordlist for word in wordlist[j]]
         self.wordlist_arr = np.array([[i for i in j] for j in self.wordlist])
         self.word_values = {word: v for v in wordlist for word in wordlist[v]}
@@ -336,7 +336,7 @@ class MainWordList(object):
         self.word_to_num = {self.wordlist[i]: i for i in range(len(self.wordlist))}
         self.nums_by_letter = []
         self.nums_by_letter_rev = []
-        self.words_inserted = 1
+        self.words_inserted = words_inserted
 
         for letter_idx in range(len(self.wordlist[0])):
             nums_by_ith_letter = {i: [] for i in self.alphabet}
@@ -451,8 +451,8 @@ class WordList(object):
             for letter in self.word_by_letter[idx]:
                 cur_vals = self.main_wordlist.nums_by_letter_rev[idx][del_word_nums[words[:, idx] == letter]]
                 cur_negs = self.word_by_letter[idx][letter][cur_vals] == -1
-                self.word_by_letter[idx][letter][cur_vals[cur_negs]] = self.main_wordlist.words_inserted
-        self.wordnums[del_word_nums[self.wordnums[del_word_nums] == -1]] = self.main_wordlist.words_inserted
+                self.word_by_letter[idx][letter][cur_vals[cur_negs]] = self.main_wordlist.words_inserted[0]
+        self.wordnums[del_word_nums[self.wordnums[del_word_nums] == -1]] = self.main_wordlist.words_inserted[0]
 
     def __len__(self):
         return len(self.wordlist)
@@ -468,7 +468,7 @@ class WordList(object):
             for letter in self.word_by_letter[pos]:
                 if np.all(self.word_by_letter[pos][letter] > 0) and letter in self.cell_list[pos][0].possible_chars() and (pos != pos_in_word or letter != deleted_char):
                     box, direction = (self.cell_list[pos][m] for m in range(2))
-                    box.char_history[alphabet.index(letter)] = self.main_wordlist.words_inserted
+                    box.char_history[alphabet.index(letter)] = self.main_wordlist.words_inserted[0]
                     if not self.cell_list[pos][0].possible_chars():
                         return -1
                     res = box.wordlists[1 - direction].delete_by_char(box.crossword.wr1[1 - direction][box.row][box.col], letter)
@@ -591,9 +591,24 @@ xxx.....x...xxx
 ....x.....x....
 '''
 
+special = '''
+.....x...
+.....x...
+.....x...
+...x.....
+....x....
+....x....
+....x....
+'''
+
+mini = '''
+'''
+
 # boxes = [[k, i] for i, j in enumerate(wed_boxes0.split('\n')[1:-1]) for k, k1 in enumerate(j) if k1 == 'x']
 # print(boxes)
 
-cw1 = CM(15, 15, mon_boxes0)
+# cw1 = CM(15, 15, mon_boxes0)
+cw1 = CM(7, 9, special)
+# cw1 = CM(4, 4, mini)
 # print(cw1)
 print(cw1.fill_puzzle(auto=False))

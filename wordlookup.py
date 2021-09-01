@@ -65,7 +65,7 @@ def benchmark():
     print(six_arr[a][:10])
 
 
-while False:
+while True:
     print(check_word(input()))
 
 
