@@ -11,7 +11,7 @@ with open('xwilist.json') as f:
     xwi_wordlist1 = json.load(f)
 
 for i in list(xwi_wordlist1.keys()):
-    if int(i) < 30:
+    if int(i) < 25:
         del xwi_wordlist1[i]
     # if int(i) == 25:
     #     xwi_wordlist1[i] = [j for j in xwi_wordlist1[i] if len(j) == 3]
@@ -244,7 +244,7 @@ class CM(object):
                         if still_possible == -1:
                             return -1
                         box.char_history[j] = self.words_inserted[0]
-            return 0
+        return 0
 
     def roll_back(self, last_word, last_num):
         print('Deleting word:', last_word)
@@ -466,7 +466,7 @@ class WordList(object):
         self.del_mult(word_nums)
         for pos in range(len(self.word_by_letter)):
             for letter in self.word_by_letter[pos]:
-                if np.all(self.word_by_letter[pos][letter] > 0) and letter in self.cell_list[pos][0].possible_chars() and (pos != pos_in_word or letter != deleted_char):
+                if np.all(self.word_by_letter[pos][letter] >= 0) and letter in self.cell_list[pos][0].possible_chars() and (pos != pos_in_word or letter != deleted_char):
                     box, direction = (self.cell_list[pos][m] for m in range(2))
                     box.char_history[alphabet.index(letter)] = self.main_wordlist.words_inserted[0]
                     if not self.cell_list[pos][0].possible_chars():
@@ -592,13 +592,16 @@ xxx.....x...xxx
 '''
 
 special = '''
-.....x...
-.....x...
-.....x...
-...x.....
-....x....
-....x....
-....x....
+.....x.....
+.....x.....
+.....x.....
+.......x...
+xxx...x....
+....x...xxx
+...x.......
+.....x.....
+.....x.....
+.....x.....
 '''
 
 mini = '''
@@ -608,7 +611,9 @@ mini = '''
 # print(boxes)
 
 # cw1 = CM(15, 15, mon_boxes0)
-cw1 = CM(7, 9, special)
-# cw1 = CM(4, 4, mini)
+h, w = len(special.split('\n')) - 2, len(special.split('\n')[1])
+print(h, w)
+cw1 = CM(h, w, special)
+# cw1 = CM(3, 3, mini)
 # print(cw1)
 print(cw1.fill_puzzle(auto=False))
