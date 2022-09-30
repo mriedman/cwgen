@@ -65,7 +65,7 @@ def benchmark():
     print(six_arr[a][:10])
 
 
-while True:
+while False:
     print(check_word(input()))
 
 
@@ -229,5 +229,21 @@ OCHO#LOVEYDOVEY
 TAMS#LOCAL#LIAM
 HISS#YORKE#JARS'''
 
-check_xword(xw9)
+xw10 = '''IMDB#SPOCK#NANO
+MYRA#KERRI#IPAD
+HEAD#INCARNATED
+IAMSAMSAMIAM###
+TRAMP#ESP#REECE
+###ERBE#OOCYTES
+#MALIA#GNC##HEP
+#CALLMEISHMAEL#
+VCR##BLT#ROLLO#
+MOONPIE#DEAL###
+IONIA#GIO#THEOC
+###MYNAMEISEARL
+SPARSENESS#ASEA
+OREO#ICANT#RYAN
+LORD#LENTO#TADS'''
+
+check_xword(xw10)
 # benchmark()
